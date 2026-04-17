@@ -1,0 +1,1671 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A Nap működése – önálló 3D-s szimuláció</title>
+  <style>
+    :root{
+      --bg:#050c16;
+      --bg2:#071423;
+      --panel:rgba(12,20,35,.78);
+      --panel-strong:rgba(10,18,32,.94);
+      --soft:rgba(255,255,255,.06);
+      --soft-2:rgba(255,255,255,.1);
+      --line:rgba(255,255,255,.12);
+      --text:#ecf4ff;
+      --muted:#a8bdd7;
+      --gold:#ffc857;
+      --red:#ff6b6b;
+      --blue:#70c7ff;
+      --green:#5bdba8;
+      --violet:#b884ff;
+      --radius:18px;
+      --shadow:0 20px 40px rgba(0,0,0,.35);
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 15% 0%, rgba(36,72,136,.45), transparent 32%),
+        radial-gradient(circle at 80% 10%, rgba(255,120,70,.12), transparent 24%),
+        linear-gradient(180deg, #0a1220 0%, #050c16 100%);
+      overflow:hidden;
+    }
+
+    .app{
+      display:grid;
+      grid-template-columns: 380px 1fr;
+      gap:16px;
+      height:100%;
+      padding:16px;
+    }
+
+    .panel{
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    aside.sidebar{
+      padding:16px;
+      overflow:auto;
+      min-height:0;
+    }
+
+    .hero{
+      padding:16px 16px 18px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.12);
+      background:
+        radial-gradient(circle at 15% 15%, rgba(255,200,87,.18), transparent 28%),
+        radial-gradient(circle at 85% 10%, rgba(255,107,107,.16), transparent 24%),
+        linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      margin-bottom:14px;
+    }
+    .hero h1{margin:0 0 8px;font-size:1.4rem;line-height:1.15}
+    .hero p{margin:0;color:#dbe8ff;line-height:1.52}
+    .hero .mini{margin-top:10px;color:var(--muted);font-size:.92rem}
+
+    .stats{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-bottom:14px;
+    }
+    .stat{
+      padding:12px 12px 10px;
+      border-radius:14px;
+      background:rgba(255,255,255,.035);
+      border:1px solid var(--line);
+    }
+    .stat strong{display:block;font-size:1.12rem}
+    .stat span{display:block;margin-top:4px;color:var(--muted);font-size:.88rem;line-height:1.35}
+
+    .controlBox{
+      margin-bottom:14px;
+      padding:14px;
+      border-radius:16px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.03);
+    }
+    .controlBox h2{margin:0 0 10px;font-size:1rem}
+    .field{margin-bottom:12px}
+    .field:last-child{margin-bottom:0}
+    .field label{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      font-size:.92rem;
+      color:var(--muted);
+      margin-bottom:6px;
+    }
+    select,button,input[type="range"]{
+      width:100%;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:#091321;
+      color:var(--text);
+      padding:10px 12px;
+      font-size:.95rem;
+      outline:none;
+    }
+    select,button{appearance:none}
+    button{
+      cursor:pointer;
+      transition:transform .18s ease, border-color .18s ease, background .18s ease;
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    }
+    button:hover{transform:translateY(-1px);border-color:rgba(255,255,255,.22)}
+    .buttonRow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+    input[type="range"]{
+      padding:8px 10px;
+      accent-color: var(--gold);
+      background:rgba(255,255,255,.02);
+    }
+
+    details{
+      margin-bottom:10px;
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.028);
+      transition:background .2s ease, border-color .2s ease, transform .2s ease;
+    }
+    details.is-active{
+      border-color:rgba(255,200,87,.35);
+      background:linear-gradient(180deg, rgba(255,200,87,.08), rgba(255,255,255,.03));
+    }
+    summary{
+      cursor:pointer;
+      list-style:none;
+      font-weight:700;
+      position:relative;
+      padding-right:22px;
+    }
+    summary::-webkit-details-marker{display:none}
+    summary::after{
+      content:'▾';
+      position:absolute;
+      right:0;
+      top:0;
+      color:var(--gold);
+      transition:transform .2s ease;
+    }
+    details[open] summary::after{transform:rotate(180deg)}
+    details p, details li{color:var(--muted);line-height:1.55;font-size:.94rem}
+    details ul{padding-left:18px;margin:8px 0 0}
+    details p{margin:8px 0 0}
+
+    main.main{
+      display:grid;
+      grid-template-rows:auto 1fr auto;
+      min-height:0;
+      overflow:hidden;
+    }
+
+    .topbar{
+      padding:14px 18px;
+      border-bottom:1px solid var(--line);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      flex-wrap:wrap;
+      background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
+    }
+    .topbar h2{margin:0;font-size:1.5rem}
+    .topbar p{margin:6px 0 0;color:var(--muted);max-width:980px;line-height:1.5}
+    .topbarControls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .topbarControls .compact{min-width:280px}
+
+    .stageWrap{
+      position:relative;
+      min-height:0;
+      overflow:hidden;
+      background:
+        radial-gradient(circle at 50% 10%, rgba(33,83,176,.17), transparent 35%),
+        linear-gradient(180deg, rgba(3,8,15,.15), rgba(1,4,10,.38));
+    }
+    #simCanvas{
+      width:100%;
+      height:100%;
+      display:block;
+      cursor:grab;
+    }
+    #simCanvas.dragging{cursor:grabbing}
+
+    .overlay{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+    }
+
+    .hud,
+    .legend,
+    .sceneNote,
+    .diag{
+      position:absolute;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.13);
+      background:rgba(8,15,27,.72);
+      backdrop-filter: blur(8px);
+      box-shadow:var(--shadow);
+      pointer-events:none;
+    }
+    .hud{
+      top:16px;
+      left:16px;
+      width:min(380px, calc(100% - 32px));
+      padding:14px 16px;
+    }
+    .hud h3{margin:0 0 8px;font-size:1.06rem}
+    .hud p{margin:0;color:var(--muted);line-height:1.52;font-size:.93rem}
+
+    .legend{
+      right:16px;
+      bottom:16px;
+      width:min(360px, calc(100% - 32px));
+      padding:12px 14px;
+    }
+    .legend h4{margin:0 0 8px;font-size:.96rem}
+    .chips{display:flex;flex-wrap:wrap;gap:8px}
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.05);
+      font-size:.84rem;
+      color:#eaf4ff;
+      white-space:nowrap;
+    }
+    .dot{
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      box-shadow:0 0 10px currentColor;
+      flex:none;
+    }
+    .legend .sub{margin-top:10px;color:var(--muted);font-size:.87rem;line-height:1.5}
+
+    .sceneNote{
+      left:16px;
+      bottom:16px;
+      padding:10px 12px;
+      max-width:min(480px, calc(100% - 32px));
+      color:#eef6ff;
+      font-size:.9rem;
+      line-height:1.45;
+    }
+
+    .diag{
+      top:16px;
+      right:16px;
+      padding:8px 10px;
+      font-size:.84rem;
+      color:#d6e6ff;
+    }
+
+    .footer{
+      padding:12px 16px;
+      border-top:1px solid var(--line);
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+      color:var(--muted);
+      font-size:.9rem;
+    }
+    .footer strong{color:var(--text)}
+
+    .kbd{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-width:1.8em;
+      height:1.8em;
+      padding:0 .5em;
+      border-radius:8px;
+      background:rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.12);
+      color:#fff;
+      font-size:.8rem;
+      margin:0 .12em;
+      vertical-align:middle;
+    }
+
+    .refs li{margin-bottom:6px}
+
+    @media (max-width: 1080px){
+      .app{grid-template-columns:1fr;grid-template-rows:auto 1fr;height:auto;min-height:100%}
+      body{overflow:auto}
+      aside.sidebar{max-height:none}
+      main.main{min-height:70vh}
+      .topbarControls .compact{min-width:0;width:100%}
+      .topbar{align-items:flex-start}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar panel">
+      <section class="hero">
+        <h1>A Nap működése – interaktív 3D-s bemutató</h1>
+        <p>Ez a változat teljesen <strong>önálló</strong>, külső könyvtár nélkül fut, ezért helyi fájlként megnyitva is működnie kell. A cél látványosan, de szakmailag vállalhatóan bemutatni a Nap szerkezetét, a magfúziót, az energia útját, a naptevékenységet, a csillag fejlődését és a földi fúziós technológiát.</p>
+        <div class="mini">Tipp: húzd az egeret a vásznon a nézet forgatásához, görgővel közelíthetsz és távolíthatsz.</div>
+      </section>
+
+      <section class="stats">
+        <div class="stat"><strong>≈ 1,39 millió km</strong><span>A Nap átmérője</span></div>
+        <div class="stat"><strong>≈ 4,6 milliárd év</strong><span>A Nap becsült kora</span></div>
+        <div class="stat"><strong>≈ 15 millió K</strong><span>Maghőmérséklet</span></div>
+        <div class="stat"><strong>≈ 5778 K</strong><span>Fotoszféra hőmérséklete</span></div>
+      </section>
+
+      <section class="controlBox">
+        <h2>Vezérlés</h2>
+        <div class="field">
+          <label for="sceneSelectSide"><span>Szimuláció / fejezet</span><span id="sceneShortName">A Nap szerkezete</span></label>
+          <select id="sceneSelectSide">
+            <option value="structure">1. A Nap szerkezete</option>
+            <option value="fusion">2. Hidrogénfúzió a magban</option>
+            <option value="transport">3. Az energia útja</option>
+            <option value="activity">4. Naptevékenység és Föld-hatások</option>
+            <option value="evolution">5. A Nap élete és jövője</option>
+            <option value="fusionPower">6. Földi fúziós erőmű</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="speedRange"><span>Animáció sebessége</span><span id="speedLabel">1,00×</span></label>
+          <input id="speedRange" type="range" min="0.25" max="2" step="0.25" value="1" />
+        </div>
+        <div class="buttonRow">
+          <button id="playPauseBtn" type="button">Szünet</button>
+          <button id="resetViewBtn" type="button">Nézet alaphelyzet</button>
+        </div>
+      </section>
+
+      <details open>
+        <summary>Használati útmutató</summary>
+        <p>Válassz fejezetet, majd figyeld a jobb oldali dinamikus HUD magyarázatait. A vásznon az egérrel forgathatod a nézetet, a görgővel közelíthetsz. A bal oldali legördülő menük nem dísznek vannak: mindegyik a szimulációhoz tartozó szakmai magyarázatot sűríti össze.</p>
+        <ul>
+          <li><span class="kbd">Húzás</span> nézetforgatás</li>
+          <li><span class="kbd">Görgő</span> zoom</li>
+          <li><span class="kbd">Szünet</span> animáció megállítása</li>
+          <li><span class="kbd">Nézet alaphelyzet</span> fejezetenként ajánlott kameraállás</li>
+        </ul>
+      </details>
+
+      <details data-scene="structure" open>
+        <summary>1. A Nap szerkezete</summary>
+        <p>A Nap nem homogén gázgömb, hanem réteges szerkezetű csillag. A magban termelődik az energia, ezt követi a sugárzási zóna, majd a konvektív zóna. A fotoszféra a látható felszín, efelett helyezkedik el a kromoszféra és a forró korona.</p>
+        <ul>
+          <li><strong>Mag:</strong> hidrogénfúzió, extrém hőmérséklet és nyomás.</li>
+          <li><strong>Sugárzási zóna:</strong> fotonok lassú „véletlen bolyongása”.</li>
+          <li><strong>Konvektív zóna:</strong> feláramló forró és visszasüllyedő hűvösebb plazma.</li>
+        </ul>
+      </details>
+
+      <details data-scene="fusion">
+        <summary>2. Proton–proton lánc</summary>
+        <p>A Nap magjában a legfontosabb energiatermelő folyamat a proton–proton lánc. Négy hidrogénmagból végül egy héliummag lesz, miközben energiát hordozó részecskék és gamma-fotonok keletkeznek.</p>
+        <ul>
+          <li>A folyamat valószínűsége kicsi, de a Nap óriási tömege miatt összességében hatalmas energiatermelést eredményez.</li>
+          <li>A tömegdefektus energiává alakul: <strong>E = mc²</strong>.</li>
+        </ul>
+      </details>
+
+      <details data-scene="transport">
+        <summary>3. Az energia útja a felszínig</summary>
+        <p>A magban keletkező energia nem „egyenesen kilő” a felszínre. A sugárzási zónában a fotonok folyton elnyelődnek és újrakibocsátódnak, emiatt rendkívül lassan jutnak kifelé. A külsőbb rétegekben már a konvekció veszi át a fő szerepet.</p>
+        <ul>
+          <li><strong>Sugárzási zóna:</strong> diffúzív, ütközéses energiaszállítás.</li>
+          <li><strong>Konvektív zóna:</strong> felhajtóerő által hajtott anyagáramlás.</li>
+        </ul>
+      </details>
+
+      <details data-scene="activity">
+        <summary>4. Naptevékenység és Föld-hatások</summary>
+        <p>A napfoltok, napkitörések és koronakidobódások mögött bonyolult mágneses térszerkezetek állnak. A Napból kiáramló töltött részecskék kölcsönhatnak a Föld magnetoszférájával, sarki fényt és geomágneses viharokat okozva.</p>
+        <ul>
+          <li><strong>Napszél:</strong> folyamatos részecskeáramlás a Napból.</li>
+          <li><strong>Geomágneses vihar:</strong> technológiai rendszereket is zavarhat.</li>
+        </ul>
+      </details>
+
+      <details data-scene="evolution">
+        <summary>5. A Nap élete és jövője</summary>
+        <p>A Nap jelenleg fősorozati csillag. Néhány milliárd év múlva a mag hidrogénkészlete megfogyatkozik, a külső rétegek kitágulnak, és a csillag vörös óriássá válik. Később leveti külső anyagát, majd fehér törpeként marad fenn.</p>
+      </details>
+
+      <details data-scene="fusionPower">
+        <summary>6. Földi fúziós erőmű</summary>
+        <p>A földi fúziós reaktorok nem a Nap gravitációját használják, hanem mesterségesen létrehozott forró plazmát tartanak össze erős mágneses térrel. A cél hasonló: könnyű atommagok egyesítésével nagy energiasűrűségű folyamatot létrehozni.</p>
+        <ul>
+          <li><strong>Nap:</strong> gravitációs összenyomás.</li>
+          <li><strong>Tokamak:</strong> mágneses plazmaösszetartás.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary>Fogalomtár</summary>
+        <ul>
+          <li><strong>Fotoszféra:</strong> a Nap látható „felszíne”.</li>
+          <li><strong>Kromoszféra:</strong> a fotoszféra feletti vékonyabb légköri réteg.</li>
+          <li><strong>Korona:</strong> rendkívül forró, ritka külső légkör.</li>
+          <li><strong>Magfúzió:</strong> könnyű atommagok egyesülése nehezebb maggá.</li>
+          <li><strong>Napszél:</strong> töltött részecskék kiáramlása a Napból.</li>
+          <li><strong>Tokamak:</strong> toroid alakú mágneses fúziós berendezés.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary>Ajánlott források és szakmai háttér</summary>
+        <ul class="refs">
+          <li>NASA Solar System Exploration – The Sun</li>
+          <li>NASA Heliophysics és Solar Dynamics Observatory anyagok</li>
+          <li>ESA Space Weather és Solar Orbiter háttéranyagok</li>
+          <li>NOAA Space Weather Prediction Center ismertetők</li>
+          <li>OpenStax Astronomy – csillagok szerkezete és fejlődése</li>
+          <li>Royal Observatory Greenwich – Sun and stars educational resources</li>
+        </ul>
+      </details>
+    </aside>
+
+    <main class="main panel">
+      <header class="topbar">
+        <div>
+          <h2>Professzionális 3D-s bemutató a Nap működéséről</h2>
+          <p>Az animációk nem csak szépek: fejezetenként modellezik a Nap felépítését, a hidrogénfúziót, az energia transzportját, a naptevékenységet, a csillag fejlődését és a földi fúziós energiatermelés alapelvét.</p>
+        </div>
+        <div class="topbarControls">
+          <div class="compact">
+            <label for="sceneSelectTop" style="display:block;color:var(--muted);font-size:.9rem;margin-bottom:6px">Fejezet / szimuláció</label>
+            <select id="sceneSelectTop">
+              <option value="structure">1. A Nap szerkezete</option>
+              <option value="fusion">2. Hidrogénfúzió a magban</option>
+              <option value="transport">3. Az energia útja</option>
+              <option value="activity">4. Naptevékenység és Föld-hatások</option>
+              <option value="evolution">5. A Nap élete és jövője</option>
+              <option value="fusionPower">6. Földi fúziós erőmű</option>
+            </select>
+          </div>
+        </div>
+      </header>
+
+      <section class="stageWrap" id="stageWrap">
+        <canvas id="simCanvas"></canvas>
+        <div class="overlay">
+          <section class="hud" id="hud"></section>
+          <section class="legend" id="legend"></section>
+          <section class="sceneNote" id="sceneNote"></section>
+          <section class="diag" id="diag">Betöltve</section>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <div><strong>Tipp:</strong> ez a verzió külső JS-könyvtár nélkül készült, ezért helyi <code>index.html</code>-ként is stabilabban fut.</div>
+        <div id="statusText">Aktív jelenet: A Nap szerkezete</div>
+      </footer>
+    </main>
+  </div>
+
+  <noscript>
+    <div style="position:fixed;inset:20px;background:#08111d;color:#fff;padding:20px;border:1px solid #345;border-radius:18px;font-family:system-ui;z-index:9999;box-shadow:0 20px 40px rgba(0,0,0,.4)">Ehhez az oldalhoz JavaScript szükséges.</div>
+  </noscript>
+
+  <script>
+  (() => {
+    'use strict';
+
+    const canvas = document.getElementById('simCanvas');
+    const stageWrap = document.getElementById('stageWrap');
+    const hud = document.getElementById('hud');
+    const legend = document.getElementById('legend');
+    const sceneNote = document.getElementById('sceneNote');
+    const diag = document.getElementById('diag');
+    const statusText = document.getElementById('statusText');
+    const sceneSelectTop = document.getElementById('sceneSelectTop');
+    const sceneSelectSide = document.getElementById('sceneSelectSide');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const resetViewBtn = document.getElementById('resetViewBtn');
+    const speedRange = document.getElementById('speedRange');
+    const speedLabel = document.getElementById('speedLabel');
+    const sceneShortName = document.getElementById('sceneShortName');
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      diag.textContent = 'A böngésző nem tudta elindítani a Canvas-t.';
+      return;
+    }
+
+    const TAU = Math.PI * 2;
+    const dprCap = 2;
+
+    const app = {
+      width: 0,
+      height: 0,
+      dpr: 1,
+      lastTime: performance.now(),
+      elapsed: 0,
+      playing: true,
+      speed: 1,
+      sceneKey: 'structure',
+      camera: { yaw: -0.45, pitch: 0.18, dist: 20 },
+      mouse: { down: false, x: 0, y: 0 },
+      stars: [],
+      sceneData: {},
+      perf: { fps: 60, blend: 60 }
+    };
+
+    const CAMERA_PRESETS = {
+      structure: { yaw: -0.42, pitch: 0.15, dist: 19 },
+      fusion: { yaw: -0.18, pitch: 0.22, dist: 15 },
+      transport: { yaw: -0.38, pitch: 0.17, dist: 18 },
+      activity: { yaw: -0.08, pitch: 0.12, dist: 25 },
+      evolution: { yaw: -0.03, pitch: 0.09, dist: 28 },
+      fusionPower: { yaw: -0.72, pitch: 0.24, dist: 18 }
+    };
+
+    const SCENE_META = {
+      structure: {
+        shortName: 'A Nap szerkezete',
+        title: 'A Nap réteges felépítése',
+        summary: 'A modell a Nap fő rétegeit mutatja: a magot, a sugárzási zónát, a konvektív zónát, a fotoszférát, a kromoszférát és a koronát. A külső rétegek átlátszók, hogy a belső szerkezet egyszerre legyen látható.',
+        note: 'A Nap látható „felszíne” valójában nem szilárd felszín, hanem forró plazmaréteg: a fotoszféra.',
+        legend: [
+          ['#ffe27a', 'Mag'],
+          ['#ffb85c', 'Sugárzási zóna'],
+          ['#ff7f5f', 'Konvektív zóna'],
+          ['#fff1d7', 'Fotoszféra'],
+          ['#ff7ab8', 'Kromoszféra'],
+          ['#8cd7ff', 'Korona']
+        ]
+      },
+      fusion: {
+        shortName: 'Hidrogénfúzió a magban',
+        title: 'Proton–proton lánc a Nap magjában',
+        summary: 'A bemutató leegyszerűsítve szemlélteti, ahogy több hidrogénmag végül héliummaggá egyesül. A folyamat során energia hordozói — például fotonok és neutrínók — keletkeznek.',
+        note: 'A valós magfúzió több köztes lépést tartalmaz, itt az elvi lényeget látod: tömegveszteségből energia lesz.',
+        legend: [
+          ['#6cc2ff', 'Proton'],
+          ['#ffe46d', 'Héliummag'],
+          ['#e2c2ff', 'Gamma-foton'],
+          ['#8ce8ff', 'Neutrínó']
+        ]
+      },
+      transport: {
+        shortName: 'Az energia útja',
+        title: 'Az energia kijutása a magtól a felszínig',
+        summary: 'A lila pontok a sugárzási zónában bolyongó fotonokat jelképezik, a nyilak pedig a konvektív zóna anyagáramlását. A két mechanizmus fizikailag eltérő módon viszi kifelé az energiát.',
+        note: 'A sugárzási zónában az energia diffúz módon, a konvektív zónában tömegmozgással jut kifelé.',
+        legend: [
+          ['#ffe27a', 'Mag'],
+          ['#e2c2ff', 'Fotonok'],
+          ['#ff916b', 'Feláramló plazma'],
+          ['#7fc9ff', 'Leáramló plazma']
+        ]
+      },
+      activity: {
+        shortName: 'Naptevékenység és Föld-hatások',
+        title: 'Napfoltok, napszél és sarki fény',
+        summary: 'A Nap mágneses aktivitása napfoltokat, kitöréseket és részecskeáramokat hozhat létre. A Föld mágneses tere részben eltéríti ezt a plazmát, a pólusok közelében pedig sarki fény jelenhet meg.',
+        note: 'A sarki fény akkor keletkezik, amikor töltött részecskék a felsőlégkör atomjaival ütköznek.',
+        legend: [
+          ['#ffcc52', 'Nap'],
+          ['#121212', 'Napfolt'],
+          ['#ff6464', 'Kitörés'],
+          ['#8ce8ff', 'Napszél'],
+          ['#61e3a5', 'Sarki fény']
+        ]
+      },
+      evolution: {
+        shortName: 'A Nap élete és jövője',
+        title: 'A Nap fejlődési pályája',
+        summary: 'A jelenet idővonalon mutatja a Nap fő életszakaszait: csillagközi felhőből kialakuló csillag, fősorozati állapot, vörös óriás fázis, majd fehér törpe és a levetett külső anyagból létrejövő ködszerkezet.',
+        note: 'A Nap nem szupernóvaként fejezi be életét; tömege ehhez túl kicsi.',
+        legend: [
+          ['#8fd4ff', 'Csillagközi felhő'],
+          ['#ffd45c', 'Fősorozati Nap'],
+          ['#ff7a66', 'Vörös óriás'],
+          ['#85d9d1', 'Planetáris köd'],
+          ['#f6f7fa', 'Fehér törpe']
+        ]
+      },
+      fusionPower: {
+        shortName: 'Földi fúziós erőmű',
+        title: 'Tokamak: mesterséges fúziós plazma',
+        summary: 'A toroid alakú térben mozgó részecskék a plazmát jelképezik. A Nap gravitációjával ellentétben itt erős mágneses tér tartja kordában az extrém hőmérsékletű anyagot.',
+        note: 'A földi fúzió tipikusan deutérium–trícium reakcióra épül, nem pontosan ugyanarra a folyamatra, mint a Nap proton–proton lánca.',
+        legend: [
+          ['#b884ff', 'Mágneses csapda'],
+          ['#ffcf52', 'Forró plazma'],
+          ['#8ce8ff', 'Reagáló részecskék'],
+          ['#ff9769', 'Felszabaduló energia']
+        ]
+      }
+    };
+
+    function clamp(v, min, max) {
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function smoothstep(a, b, x) {
+      const t = clamp((x - a) / (b - a), 0, 1);
+      return t * t * (3 - 2 * t);
+    }
+
+    function hexToRgb(hex) {
+      let value = hex.replace('#', '').trim();
+      if (value.length === 3) value = value.split('').map(c => c + c).join('');
+      const num = parseInt(value, 16);
+      return {
+        r: (num >> 16) & 255,
+        g: (num >> 8) & 255,
+        b: num & 255
+      };
+    }
+
+    function rgba(hex, alpha) {
+      const { r, g, b } = hexToRgb(hex);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function shift(hex, amount) {
+      const { r, g, b } = hexToRgb(hex);
+      const toward = amount >= 0 ? 255 : 0;
+      const p = Math.abs(amount);
+      const nr = Math.round(r + (toward - r) * p);
+      const ng = Math.round(g + (toward - g) * p);
+      const nb = Math.round(b + (toward - b) * p);
+      return `rgb(${nr}, ${ng}, ${nb})`;
+    }
+
+    function makeStars(count = 750) {
+      const stars = [];
+      for (let i = 0; i < count; i++) {
+        stars.push({
+          x: (Math.random() - 0.5) * 150,
+          y: (Math.random() - 0.5) * 90,
+          z: (Math.random() - 0.5) * 160,
+          s: Math.random() * 1.8 + 0.3,
+          a: Math.random() * 0.65 + 0.2,
+          tw: Math.random() * TAU
+        });
+      }
+      return stars;
+    }
+
+    function resize() {
+      app.width = stageWrap.clientWidth;
+      app.height = stageWrap.clientHeight;
+      app.dpr = Math.min(window.devicePixelRatio || 1, dprCap);
+      canvas.width = Math.max(1, Math.floor(app.width * app.dpr));
+      canvas.height = Math.max(1, Math.floor(app.height * app.dpr));
+      ctx.setTransform(app.dpr, 0, 0, app.dpr, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      diag.textContent = `Canvas: ${app.width}×${app.height} • ${app.playing ? 'fut' : 'szünet'} • ${app.perf.fps.toFixed(0)} FPS`;
+    }
+
+    function applyCameraPreset(sceneKey) {
+      const preset = CAMERA_PRESETS[sceneKey];
+      if (!preset) return;
+      app.camera.yaw = preset.yaw;
+      app.camera.pitch = preset.pitch;
+      app.camera.dist = preset.dist;
+    }
+
+    function project(point) {
+      const cy = Math.cos(app.camera.yaw);
+      const sy = Math.sin(app.camera.yaw);
+      const cp = Math.cos(app.camera.pitch);
+      const sp = Math.sin(app.camera.pitch);
+
+      let x = point.x;
+      let y = point.y;
+      let z = point.z;
+
+      const x1 = x * cy - z * sy;
+      const z1 = x * sy + z * cy;
+      const y2 = y * cp - z1 * sp;
+      const z2 = y * sp + z1 * cp + app.camera.dist;
+      const scale = 900 / z2;
+
+      return {
+        x: app.width / 2 + x1 * scale,
+        y: app.height / 2 - y2 * scale,
+        scale,
+        z: z2,
+        visible: z2 > 0.1
+      };
+    }
+
+    function circlePath(x, y, r) {
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, TAU);
+    }
+
+    function roundRectPath(x, y, w, h, r) {
+      const rr = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.arcTo(x + w, y, x + w, y + h, rr);
+      ctx.arcTo(x + w, y + h, x, y + h, rr);
+      ctx.arcTo(x, y + h, x, y, rr);
+      ctx.arcTo(x, y, x + w, y, rr);
+      ctx.closePath();
+    }
+
+    function drawBackground() {
+      const g = ctx.createLinearGradient(0, 0, 0, app.height);
+      g.addColorStop(0, '#06101d');
+      g.addColorStop(1, '#040912');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, app.width, app.height);
+
+      const haze = ctx.createRadialGradient(app.width * 0.5, app.height * 0.08, 10, app.width * 0.5, app.height * 0.08, app.width * 0.55);
+      haze.addColorStop(0, 'rgba(48, 102, 217, 0.20)');
+      haze.addColorStop(1, 'rgba(48, 102, 217, 0)');
+      ctx.fillStyle = haze;
+      ctx.fillRect(0, 0, app.width, app.height);
+    }
+
+    function drawStars() {
+      for (const s of app.stars) {
+        const point = {
+          x: s.x,
+          y: s.y,
+          z: s.z + Math.sin(app.elapsed * 0.03 + s.tw) * 0.6
+        };
+        const p = project(point);
+        if (!p.visible) continue;
+        if (p.x < -10 || p.x > app.width + 10 || p.y < -10 || p.y > app.height + 10) continue;
+        const a = s.a * (0.65 + 0.35 * Math.sin(app.elapsed * 0.8 + s.tw));
+        ctx.fillStyle = `rgba(255,255,255,${a})`;
+        const size = Math.max(0.6, s.s * p.scale * 0.012);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, size, 0, TAU);
+        ctx.fill();
+      }
+    }
+
+    function drawGlow(x, y, r, color, alpha) {
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+      grad.addColorStop(0, rgba(color, alpha));
+      grad.addColorStop(0.45, rgba(color, alpha * 0.35));
+      grad.addColorStop(1, rgba(color, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, TAU);
+      ctx.fill();
+    }
+
+    function drawSphere(x, y, r, color, options = {}) {
+      const {
+        alpha = 1,
+        rim = 0.22,
+        glow = 0,
+        glowColor = color,
+        texture = false,
+        spotDefs = null,
+        time = app.elapsed,
+        transparent = false
+      } = options;
+
+      if (glow > 0) drawGlow(x, y, r * glow, glowColor, alpha * 0.32);
+
+      const grad = ctx.createRadialGradient(
+        x - r * 0.35,
+        y - r * 0.38,
+        r * 0.14,
+        x + r * 0.15,
+        y + r * 0.18,
+        r
+      );
+      grad.addColorStop(0, shift(color, 0.48));
+      grad.addColorStop(0.5, color);
+      grad.addColorStop(1, shift(color, -0.52));
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = grad;
+      circlePath(x, y, r);
+      ctx.fill();
+
+      if (texture) {
+        ctx.save();
+        circlePath(x, y, r);
+        ctx.clip();
+
+        for (let i = 0; i < 22; i++) {
+          const a = time * 0.15 + i * 0.37;
+          const rx = Math.sin(a * 1.17 + i) * r * 0.55;
+          const ry = Math.cos(a * 0.91 + i * 0.35) * r * 0.45;
+          const rw = r * (0.12 + (i % 4) * 0.03);
+          const rh = r * (0.05 + (i % 3) * 0.02);
+          ctx.fillStyle = i % 3 === 0 ? 'rgba(255,240,200,0.09)' : 'rgba(255,120,40,0.08)';
+          ctx.beginPath();
+          ctx.ellipse(x + rx, y + ry, rw, rh, a, 0, TAU);
+          ctx.fill();
+        }
+
+        if (spotDefs) {
+          for (const spot of spotDefs) {
+            const px = x + Math.cos(spot.a + time * spot.speed) * r * spot.rx;
+            const py = y + Math.sin(spot.a * 0.8 + time * spot.speed * 0.9) * r * spot.ry;
+            ctx.fillStyle = 'rgba(25,20,15,0.55)';
+            ctx.beginPath();
+            ctx.ellipse(px, py, r * spot.sx, r * spot.sy, spot.a, 0, TAU);
+            ctx.fill();
+          }
+        }
+
+        ctx.restore();
+      }
+
+      if (transparent) {
+        ctx.strokeStyle = rgba(color, alpha * 0.75);
+        ctx.lineWidth = 1.2;
+        circlePath(x, y, r);
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = rgba('#ffffff', rim * alpha);
+        ctx.lineWidth = 1;
+        circlePath(x, y, r);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawConnector(x1, y1, x2, y2, color, dashed = false) {
+      ctx.save();
+      ctx.strokeStyle = rgba(color, 0.6);
+      ctx.lineWidth = 1.15;
+      if (dashed) ctx.setLineDash([5, 6]);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      const midX = lerp(x1, x2, 0.45);
+      ctx.lineTo(midX, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawLabel(x, y, text, color, align = 'left') {
+      const lines = String(text).split('\n');
+      ctx.save();
+      ctx.font = '600 14px Inter, system-ui, sans-serif';
+      const paddingX = 10;
+      const paddingY = 8;
+      const lineH = 18;
+      let width = 0;
+      for (const line of lines) width = Math.max(width, ctx.measureText(line).width);
+      const boxW = width + paddingX * 2;
+      const boxH = lines.length * lineH + paddingY * 2 - 2;
+      const drawX = align === 'right' ? x - boxW : x;
+      const drawY = y - boxH / 2;
+      roundRectPath(drawX, drawY, boxW, boxH, 12);
+      ctx.fillStyle = 'rgba(7, 14, 24, 0.82)';
+      ctx.fill();
+      ctx.strokeStyle = rgba(color, 0.55);
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = '#f1f7ff';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      lines.forEach((line, index) => {
+        ctx.fillText(line, drawX + paddingX, drawY + paddingY + 7 + index * lineH);
+      });
+      ctx.restore();
+      return { x: drawX, y: drawY, w: boxW, h: boxH };
+    }
+
+    function drawArrow(x1, y1, x2, y2, color, alpha = 0.8) {
+      const ang = Math.atan2(y2 - y1, x2 - x1);
+      ctx.save();
+      ctx.strokeStyle = rgba(color, alpha);
+      ctx.fillStyle = rgba(color, alpha);
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - Math.cos(ang - 0.35) * 8, y2 - Math.sin(ang - 0.35) * 8);
+      ctx.lineTo(x2 - Math.cos(ang + 0.35) * 8, y2 - Math.sin(ang + 0.35) * 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawPolyline(points, color, width = 1.2, alpha = 1, dashed = false) {
+      if (!points || points.length < 2) return;
+      ctx.save();
+      ctx.strokeStyle = rgba(color, alpha);
+      ctx.lineWidth = width;
+      if (dashed) ctx.setLineDash([6, 7]);
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawPill(x, y, text, color) {
+      ctx.save();
+      ctx.font = '600 13px Inter, system-ui, sans-serif';
+      const w = ctx.measureText(text).width + 18;
+      roundRectPath(x, y, w, 28, 14);
+      ctx.fillStyle = 'rgba(7, 14, 24, 0.82)';
+      ctx.fill();
+      ctx.strokeStyle = rgba(color, 0.55);
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = '#eef6ff';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, x + 9, y + 14);
+      ctx.restore();
+      return w;
+    }
+
+    function updateSceneUI(sceneKey) {
+      const meta = SCENE_META[sceneKey];
+      if (!meta) return;
+      sceneShortName.textContent = meta.shortName;
+      statusText.textContent = `Aktív jelenet: ${meta.shortName}`;
+
+      hud.innerHTML = `<h3>${meta.title}</h3><p>${meta.summary}</p>`;
+      sceneNote.textContent = meta.note;
+      legend.innerHTML = `<h4>Jelmagyarázat</h4><div class="chips">${meta.legend.map(([c, label]) => `<span class="chip"><span class="dot" style="background:${c};color:${c}"></span>${label}</span>`).join('')}</div><div class="sub">A jobb oldali jelenet didaktikus modell: a cél az összefüggések látványos és érthető bemutatása.</div>`;
+
+      const details = document.querySelectorAll('details[data-scene]');
+      details.forEach(el => {
+        const active = el.dataset.scene === sceneKey;
+        el.classList.toggle('is-active', active);
+        if (active) el.open = true;
+      });
+    }
+
+    function sceneState(sceneKey) {
+      if (!app.sceneData[sceneKey]) app.sceneData[sceneKey] = {};
+      return app.sceneData[sceneKey];
+    }
+
+    function makeSurfaceSpots() {
+      return [
+        { a: 0.2, speed: 0.19, rx: 0.48, ry: 0.24, sx: 0.08, sy: 0.04 },
+        { a: 1.6, speed: 0.16, rx: 0.42, ry: 0.32, sx: 0.06, sy: 0.03 },
+        { a: 3.0, speed: 0.18, rx: 0.36, ry: 0.18, sx: 0.07, sy: 0.035 }
+      ];
+    }
+
+    const scenes = {
+      structure: {
+        init(s) {
+          s.rot = 0;
+          s.spots = makeSurfaceSpots();
+        },
+        update(dt, s) {
+          s.rot += dt * 0.12;
+        },
+        render(s) {
+          const center = project({ x: 0, y: 0.2, z: 0 });
+          const radii = {
+            core: 1.05 * center.scale,
+            rad: 2.45 * center.scale,
+            conv: 3.45 * center.scale,
+            photo: 3.95 * center.scale,
+            chromo: 4.12 * center.scale,
+            corona: 4.75 * center.scale
+          };
+
+          drawGlow(center.x, center.y, radii.corona * 1.18, '#ffad33', 0.16);
+          drawGlow(center.x, center.y, radii.corona * 1.55, '#5ebaff', 0.08);
+          drawSphere(center.x, center.y, radii.corona, '#8cd7ff', { alpha: 0.08, transparent: true });
+          drawSphere(center.x, center.y, radii.chromo, '#ff7ab8', { alpha: 0.12, transparent: true });
+          drawSphere(center.x, center.y, radii.photo, '#ffb13a', { alpha: 0.94, texture: true, spotDefs: s.spots, time: app.elapsed + s.rot * 3, glow: 1.12, glowColor: '#ffaf3f' });
+          drawSphere(center.x, center.y, radii.conv, '#ff7f5f', { alpha: 0.18, transparent: true });
+          drawSphere(center.x, center.y, radii.rad, '#ffb85c', { alpha: 0.22, transparent: true });
+          drawSphere(center.x, center.y, radii.core, '#ffe27a', { alpha: 0.95, glow: 1.8, glowColor: '#ffe27a' });
+
+          // cutaway impression
+          ctx.save();
+          circlePath(center.x, center.y, radii.corona + 2);
+          ctx.clip();
+          ctx.fillStyle = 'rgba(4, 9, 18, 0.72)';
+          ctx.beginPath();
+          ctx.moveTo(center.x + radii.core * 0.15, center.y - radii.corona * 0.18);
+          ctx.lineTo(center.x + radii.corona * 0.58, center.y - radii.corona * 0.82);
+          ctx.arc(center.x, center.y, radii.corona * 0.96, -0.86, 0.88);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+
+          // Internal layer contours inside cutaway
+          ctx.save();
+          ctx.strokeStyle = 'rgba(255,255,255,.14)';
+          ctx.lineWidth = 1;
+          [radii.core, radii.rad, radii.conv, radii.photo].forEach(r => {
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, r, -0.86, 0.88);
+            ctx.stroke();
+          });
+          ctx.restore();
+
+          const labels = [
+            ['Mag', '#ffe27a', radii.core, -0.05],
+            ['Sugárzási zóna', '#ffb85c', radii.rad, 0.18],
+            ['Konvektív zóna', '#ff7f5f', radii.conv, 0.36],
+            ['Fotoszféra', '#fff1d7', radii.photo, 0.58],
+            ['Kromoszféra', '#ff7ab8', radii.chromo, 0.76],
+            ['Korona', '#8cd7ff', radii.corona, 0.94]
+          ];
+
+          const labelX = Math.min(app.width - 240, center.x + radii.corona * 1.15);
+          labels.forEach(([text, color, r, factor], idx) => {
+            const ay = center.y + (factor - 0.5) * radii.corona * 1.2;
+            const ax = center.x + Math.cos(-0.1 + idx * 0.08) * r * 0.86;
+            drawConnector(ax, ay, labelX - 12, ay, color, idx % 2 === 1);
+            drawLabel(labelX, ay, text, color);
+          });
+
+          drawPill(22, app.height - 52, 'A rétegek nem méretarányos vastagságban szerepelnek', '#ffcc67');
+        }
+      },
+
+      fusion: {
+        init(s) {
+          s.stage = 0;
+          s.t = 0;
+          s.stageName = 'Keringő protonok';
+          s.burstSeed = Math.random() * 1000;
+        },
+        update(dt, s) {
+          s.t += dt;
+          if (s.stage === 0 && s.t > 3.7) {
+            s.stage = 1; s.t = 0; s.stageName = 'Összehúzódás';
+          } else if (s.stage === 1 && s.t > 1.7) {
+            s.stage = 2; s.t = 0; s.stageName = 'Héliummag és energiaburst';
+          } else if (s.stage === 2 && s.t > 1.35) {
+            s.stage = 3; s.t = 0; s.stageName = 'Levezetés és új ciklus';
+          } else if (s.stage === 3 && s.t > 1.8) {
+            s.stage = 0; s.t = 0; s.stageName = 'Keringő protonok';
+            s.burstSeed = Math.random() * 1000;
+          }
+        },
+        render(s) {
+          const center = project({ x: 0, y: 0.1, z: 0 });
+          const baseR = 4.3 * center.scale;
+          drawGlow(center.x, center.y, baseR * 1.75, '#ff7f4e', 0.13);
+          drawGlow(center.x, center.y, baseR * 1.15, '#ffd168', 0.13);
+          drawSphere(center.x, center.y, baseR, '#ff7f5f', { alpha: 0.07, transparent: true });
+
+          const objects = [];
+          const orbitPts = [];
+
+          for (let i = 0; i < 4; i++) {
+            let p;
+            if (s.stage === 0) {
+              const a = app.elapsed * 1.1 + i * TAU / 4;
+              const r = 2.85 + Math.sin(app.elapsed * 1.7 + i) * 0.35;
+              p = { x: Math.cos(a) * r, y: Math.sin(a * 1.25) * 1.35, z: Math.sin(a) * 1.2 };
+            } else if (s.stage === 1) {
+              const tt = smoothstep(0, 1, s.t / 1.7);
+              const a = app.elapsed * 0.7 + i * TAU / 4;
+              const startR = 2.5 + Math.sin(i + app.elapsed) * 0.4;
+              const endPos = [
+                { x: -0.75, y: -0.45, z: -0.18 },
+                { x: -0.15, y: 0.55, z: 0.12 },
+                { x: 0.55, y: -0.15, z: 0.14 },
+                { x: 0.12, y: 0.05, z: -0.11 }
+              ][i];
+              p = {
+                x: lerp(Math.cos(a) * startR, endPos.x, tt),
+                y: lerp(Math.sin(a * 1.1) * 1.2, endPos.y, tt),
+                z: lerp(Math.sin(a) * 1.1, endPos.z, tt)
+              };
+            } else {
+              const spread = s.stage === 2 ? 0.08 + Math.sin(app.elapsed * 12 + i) * 0.03 : 0.14;
+              p = {
+                x: Math.cos(i * 1.9 + app.elapsed * 2.5) * spread,
+                y: Math.sin(i * 1.3 + app.elapsed * 2.1) * spread,
+                z: Math.sin(i * 0.9 + app.elapsed * 2.8) * spread
+              };
+            }
+            orbitPts.push(project(p));
+            const proj = project(p);
+            objects.push({ type: 'proton', proj, depth: proj.z, i });
+          }
+
+          if (s.stage < 2) {
+            for (let i = 0; i < orbitPts.length; i++) {
+              const a = orbitPts[i];
+              const b = orbitPts[(i + 1) % orbitPts.length];
+              drawPolyline([a, b], '#70c7ff', 1, 0.12, true);
+            }
+          }
+
+          if (s.stage >= 2) {
+            const helium = project({ x: 0, y: 0, z: 0 });
+            objects.push({ type: 'helium', proj: helium, depth: helium.z, i: 0 });
+
+            const burstT = s.stage === 2 ? smoothstep(0, 1, s.t / 1.35) : 1 - smoothstep(0, 1, s.t / 1.8);
+            for (let i = 0; i < 14; i++) {
+              const a = i / 14 * TAU + s.burstSeed * 0.1;
+              const d = 0.8 + burstT * 7.4;
+              const point = {
+                x: Math.cos(a) * d,
+                y: Math.sin(a * 1.7) * 0.8,
+                z: Math.sin(a) * d * 0.6
+              };
+              const proj = project(point);
+              objects.push({ type: i % 3 === 0 ? 'neutrino' : 'photon', proj, depth: proj.z, i, t: burstT });
+            }
+          }
+
+          objects.sort((a, b) => b.depth - a.depth);
+          for (const obj of objects) {
+            if (obj.type === 'proton') {
+              const r = Math.max(5, obj.proj.scale * 0.35);
+              drawSphere(obj.proj.x, obj.proj.y, r, '#6cc2ff', { alpha: 0.95, glow: 2.2, glowColor: '#6cc2ff' });
+            } else if (obj.type === 'helium') {
+              const r = Math.max(10, obj.proj.scale * 0.72);
+              drawSphere(obj.proj.x, obj.proj.y, r, '#ffe46d', { alpha: 0.98, glow: 2.1, glowColor: '#ffe46d' });
+            } else if (obj.type === 'photon') {
+              const r = Math.max(3, obj.proj.scale * 0.13);
+              drawGlow(obj.proj.x, obj.proj.y, r * 5, '#e2c2ff', 0.16 * obj.t + 0.05);
+              drawSphere(obj.proj.x, obj.proj.y, r, '#e2c2ff', { alpha: 0.9 });
+            } else {
+              const r = Math.max(2.3, obj.proj.scale * 0.1);
+              drawGlow(obj.proj.x, obj.proj.y, r * 4, '#8ce8ff', 0.1 * obj.t + 0.04);
+              drawSphere(obj.proj.x, obj.proj.y, r, '#8ce8ff', { alpha: 0.85 });
+            }
+          }
+
+          const eq = '4 × ¹H  →  ⁴He  +  energia';
+          const eqW = drawPill(app.width / 2 - 140, app.height - 52, eq, '#ffffff');
+          drawPill(app.width / 2 - eqW / 2 - 60, 24, `Fázis: ${s.stageName}`, '#ffcc67');
+        }
+      },
+
+      transport: {
+        init(s) {
+          s.photons = Array.from({ length: 34 }, () => ({
+            x: (Math.random() - 0.5) * 0.5,
+            y: (Math.random() - 0.5) * 0.5,
+            z: (Math.random() - 0.5) * 0.5,
+            mode: 'rad',
+            trail: [],
+            angle: Math.random() * TAU,
+            vy: 0,
+            seed: Math.random() * 1000
+          }));
+          s.spots = makeSurfaceSpots();
+        },
+        update(dt, s) {
+          for (const photon of s.photons) {
+            photon.trail.unshift({ x: photon.x, y: photon.y, z: photon.z });
+            if (photon.trail.length > 8) photon.trail.pop();
+
+            if (photon.mode === 'rad') {
+              const step = 0.19 * app.speed;
+              photon.x += (Math.random() - 0.5) * step;
+              photon.y += (Math.random() - 0.5) * step;
+              photon.z += (Math.random() - 0.5) * step;
+              const len = Math.hypot(photon.x, photon.y, photon.z);
+              if (len < 0.55) {
+                const inv = 0.55 / Math.max(len, 0.001);
+                photon.x *= inv;
+                photon.y *= inv;
+                photon.z *= inv;
+              }
+              if (len > 2.55) {
+                photon.mode = 'conv';
+                photon.angle = Math.atan2(photon.z, photon.x);
+                photon.vy = -2.1 + Math.random() * 0.3;
+              }
+            } else {
+              photon.vy += dt * 2.0 * app.speed;
+              const band = 3.25 + 0.55 * Math.sin(photon.vy * 1.2 + photon.seed);
+              photon.x = Math.cos(photon.angle) * band;
+              photon.z = Math.sin(photon.angle) * band;
+              photon.y = photon.vy;
+              if (photon.y > 2.45) {
+                photon.x = (Math.random() - 0.5) * 0.5;
+                photon.y = (Math.random() - 0.5) * 0.5;
+                photon.z = (Math.random() - 0.5) * 0.5;
+                photon.mode = 'rad';
+                photon.trail.length = 0;
+              }
+            }
+          }
+        },
+        render(s) {
+          const center = project({ x: -0.7, y: 0.08, z: 0 });
+          const coreR = 0.9 * center.scale;
+          const radR = 2.55 * center.scale;
+          const convR = 3.7 * center.scale;
+          const photoR = 4.1 * center.scale;
+
+          drawGlow(center.x, center.y, photoR * 1.38, '#ff9835', 0.13);
+          drawSphere(center.x, center.y, photoR, '#ffaf35', { alpha: 0.88, texture: true, spotDefs: s.spots, time: app.elapsed * 0.8, glow: 1.15, glowColor: '#ff9a33' });
+          drawSphere(center.x, center.y, convR, '#ff7f5f', { alpha: 0.13, transparent: true });
+          drawSphere(center.x, center.y, radR, '#ffba61', { alpha: 0.16, transparent: true });
+          drawSphere(center.x, center.y, coreR, '#ffe27a', { alpha: 0.95, glow: 2, glowColor: '#ffe27a' });
+
+          // cutaway overlay to make internals clearer
+          ctx.save();
+          circlePath(center.x, center.y, photoR + 3);
+          ctx.clip();
+          ctx.fillStyle = 'rgba(4, 9, 18, 0.55)';
+          ctx.beginPath();
+          ctx.moveTo(center.x + coreR * 0.35, center.y - photoR * 0.08);
+          ctx.lineTo(center.x + photoR * 0.74, center.y - photoR * 0.8);
+          ctx.arc(center.x, center.y, photoR * 0.96, -0.8, 0.9);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+
+          // convection arrows
+          for (let i = 0; i < 7; i++) {
+            const angle = i / 7 * TAU + 0.2;
+            const inPoint = { x: -0.7 + Math.cos(angle) * 2.9, y: -1.7, z: Math.sin(angle) * 2.9 };
+            const outPoint = { x: -0.7 + Math.cos(angle) * 3.45, y: 1.7, z: Math.sin(angle) * 3.45 };
+            const p1 = project(inPoint);
+            const p2 = project(outPoint);
+            drawArrow(p1.x, p1.y, p2.x, p2.y, '#ff916b', 0.55);
+
+            const d1 = project({ x: -0.7 + Math.cos(angle + 0.32) * 3.55, y: 1.5, z: Math.sin(angle + 0.32) * 3.55 });
+            const d2 = project({ x: -0.7 + Math.cos(angle + 0.32) * 3.0, y: -1.7, z: Math.sin(angle + 0.32) * 3.0 });
+            drawArrow(d1.x, d1.y, d2.x, d2.y, '#7fc9ff', 0.45);
+          }
+
+          const photonPoints = [];
+          for (const photon of s.photons) {
+            const path = photon.trail.map(t => project({ x: t.x - 0.7, y: t.y, z: t.z })).filter(p => p.visible);
+            if (path.length > 1) drawPolyline(path, '#e2c2ff', 1, 0.16);
+            const proj = project({ x: photon.x - 0.7, y: photon.y, z: photon.z });
+            photonPoints.push(proj);
+          }
+
+          photonPoints.sort((a, b) => b.z - a.z).forEach(p => {
+            drawSphere(p.x, p.y, Math.max(2.5, p.scale * 0.12), '#e2c2ff', { alpha: 0.9, glow: 2.2, glowColor: '#e2c2ff' });
+          });
+
+          const labelX = Math.min(app.width - 230, center.x + photoR * 1.02);
+          [['Sugárzási zóna', '#ffba61', radR, center.y - 20], ['Konvektív zóna', '#ff7f5f', convR, center.y + 18]].forEach(([t, c, r, y]) => {
+            drawConnector(center.x + r * 0.82, y, labelX - 12, y, c, true);
+            drawLabel(labelX, y, t, c);
+          });
+        }
+      },
+
+      activity: {
+        init(s) {
+          s.spots = [
+            { lat: 0.15, lon: 0.3, size: 0.09 },
+            { lat: -0.25, lon: 1.6, size: 0.08 },
+            { lat: 0.32, lon: 2.55, size: 0.06 }
+          ];
+          s.particles = Array.from({ length: 130 }, () => ({
+            t: Math.random() * 1.1,
+            speed: 0.22 + Math.random() * 0.22,
+            y: (Math.random() - 0.5) * 1.9,
+            z: (Math.random() - 0.5) * 1.2,
+            seed: Math.random() * 1000
+          }));
+        },
+        update(dt, s) {
+          for (const p of s.particles) {
+            p.t += dt * p.speed * app.speed;
+            if (p.t > 1.15) {
+              p.t = Math.random() * 0.1;
+              p.y = (Math.random() - 0.5) * 1.9;
+              p.z = (Math.random() - 0.5) * 1.2;
+            }
+          }
+        },
+        render(s) {
+          const sun = { x: -8, y: 0.2, z: 0 };
+          const earth = { x: 8.4, y: 0, z: 0 };
+          const ps = project(sun);
+          const pe = project(earth);
+          const rs = 3.1 * ps.scale;
+          const re = 1.03 * pe.scale;
+
+          drawGlow(ps.x, ps.y, rs * 1.55, '#ff9f35', 0.16);
+          drawSphere(ps.x, ps.y, rs, '#ffb33c', { alpha: 0.95, texture: true, glow: 1.2, glowColor: '#ff9c2f', time: app.elapsed });
+
+          // sun spots
+          ctx.save();
+          circlePath(ps.x, ps.y, rs);
+          ctx.clip();
+          for (const spot of s.spots) {
+            const px = ps.x + Math.cos(app.elapsed * 0.14 + spot.lon) * rs * 0.55;
+            const py = ps.y + Math.sin(app.elapsed * 0.1 + spot.lat * 2) * rs * 0.28;
+            ctx.fillStyle = 'rgba(20,20,20,0.55)';
+            ctx.beginPath();
+            ctx.ellipse(px, py, rs * spot.size, rs * spot.size * 0.55, 0.2, 0, TAU);
+            ctx.fill();
+          }
+          ctx.restore();
+
+          // flare arch
+          const flarePoints = [];
+          for (let i = 0; i <= 30; i++) {
+            const t = i / 30;
+            const a = lerp(-0.1, 1.05, t);
+            flarePoints.push(project({
+              x: sun.x + 2.7 + Math.cos(a) * 1.0,
+              y: 0.6 + Math.sin(t * Math.PI) * 2.1 + Math.sin(app.elapsed * 3) * 0.08,
+              z: Math.sin(a * 2) * 0.5
+            }));
+          }
+          drawPolyline(flarePoints, '#ff6464', 2.2, 0.8);
+
+          // earth and magnetosphere
+          drawGlow(pe.x, pe.y, re * 1.75, '#2f89ff', 0.1);
+          drawSphere(pe.x, pe.y, re, '#4aa1ff', { alpha: 0.95, glow: 1.12, glowColor: '#2d88ff' });
+          for (let i = -3; i <= 3; i++) {
+            const points = [];
+            for (let t = -1.0; t <= 1.0; t += 0.06) {
+              const a = 1.35 + Math.abs(i) * 0.27;
+              points.push(project({
+                x: earth.x + Math.cos(t * Math.PI * 0.82) * a * 1.9,
+                y: Math.sin(t * Math.PI * 0.82) * a,
+                z: i * 0.32
+              }));
+            }
+            drawPolyline(points, '#8ecfff', 1.1, 0.44);
+          }
+
+          // solar wind particles
+          const particleDraw = [];
+          for (const p of s.particles) {
+            const t = clamp(p.t, 0, 1.05);
+            const bend = smoothstep(0.62, 1.0, t);
+            const sign = p.y >= 0 ? 1 : -1;
+            const point = {
+              x: lerp(sun.x + 3.3, earth.x - 0.5, t),
+              y: lerp(p.y, sign * (1.25 + 0.25 * Math.sin(app.elapsed * 5 + p.seed)), bend),
+              z: lerp(p.z, 0, bend)
+            };
+            const proj = project(point);
+            particleDraw.push({ proj, a: 0.45 + 0.45 * (1 - t) });
+          }
+          particleDraw.sort((a, b) => b.proj.z - a.proj.z).forEach(p => {
+            const r = Math.max(1.8, p.proj.scale * 0.08);
+            drawGlow(p.proj.x, p.proj.y, r * 4.3, '#8ce8ff', 0.08);
+            drawSphere(p.proj.x, p.proj.y, r, '#8ce8ff', { alpha: p.a });
+          });
+
+          // aurora curtains
+          for (const sign of [-1, 1]) {
+            const points = [];
+            for (let i = -7; i <= 7; i++) {
+              const t = i / 7;
+              points.push(project({
+                x: earth.x + 0.1 + Math.cos(t * 1.5) * 0.55,
+                y: sign * (0.88 + Math.sin(t * Math.PI * 0.85) * 0.12 + Math.sin(app.elapsed * 4 + i) * 0.05),
+                z: Math.sin(t * 2.6) * 0.22
+              }));
+            }
+            drawPolyline(points, '#61e3a5', 2.4, 0.75);
+          }
+
+          drawLabel(ps.x - rs * 0.35, ps.y - rs * 1.2, 'Nap', '#ffcc52');
+          drawLabel(pe.x - re * 0.2, pe.y - re * 1.8, 'Föld', '#8ecfff');
+          drawLabel(pe.x + re * 1.3, pe.y - re * 0.1, 'Magnetoszféra\nés sarki fény', '#61e3a5');
+        }
+      },
+
+      evolution: {
+        init(s) {
+          s.highlight = 0;
+          s.cloud = Array.from({ length: 45 }, (_, i) => ({
+            a: i / 45 * TAU,
+            r: 1.2 + Math.random() * 1.1,
+            y: (Math.random() - 0.5) * 0.8,
+            size: 0.08 + Math.random() * 0.12,
+            speed: 0.08 + Math.random() * 0.08
+          }));
+        },
+        update(dt, s) {
+          s.highlight = Math.floor((app.elapsed / 3.8) % 4);
+        },
+        render(s) {
+          const stages = [
+            { key: 'nebula', x: -11, color: '#8fd4ff', title: 'Csillagközi\nfelhő' },
+            { key: 'main', x: -3.6, color: '#ffd45c', title: 'Fősorozati\nNap' },
+            { key: 'giant', x: 4.1, color: '#ff7a66', title: 'Vörös\nóriás' },
+            { key: 'dwarf', x: 11, color: '#f5f6fa', title: 'Fehér törpe\n+ köd' }
+          ];
+
+          const lineY = app.height * 0.76;
+          ctx.save();
+          ctx.strokeStyle = 'rgba(255,255,255,.18)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(app.width * 0.13, lineY);
+          ctx.lineTo(app.width * 0.87, lineY);
+          ctx.stroke();
+          ctx.restore();
+
+          stages.forEach((stage, idx) => {
+            const p = project({ x: stage.x, y: 0.6, z: 0 });
+            const baseR = stage.key === 'giant' ? 2.15 * p.scale : stage.key === 'main' ? 1.2 * p.scale : 0.9 * p.scale;
+
+            if (stage.key === 'nebula') {
+              for (const c of s.cloud) {
+                const proj = project({
+                  x: stage.x + Math.cos(c.a + app.elapsed * c.speed) * c.r,
+                  y: c.y + Math.sin(c.a * 1.2 + app.elapsed * c.speed) * 0.4,
+                  z: Math.sin(c.a + app.elapsed * c.speed) * 0.9
+                });
+                drawGlow(proj.x, proj.y, c.size * proj.scale * 10, '#8fd4ff', 0.08);
+                drawSphere(proj.x, proj.y, c.size * proj.scale * 2.8, '#8fd4ff', { alpha: 0.38 });
+              }
+            } else if (stage.key === 'main') {
+              drawGlow(p.x, p.y, baseR * 1.85, '#ffb23f', 0.12);
+              drawSphere(p.x, p.y, baseR, '#ffbf42', { alpha: 0.96, texture: true, glow: 1.18, glowColor: '#ffb23f', time: app.elapsed });
+            } else if (stage.key === 'giant') {
+              const pulse = 1 + Math.sin(app.elapsed * 1.3) * 0.05;
+              drawGlow(p.x, p.y, baseR * 1.75 * pulse, '#ff816b', 0.14);
+              drawSphere(p.x, p.y, baseR * pulse, '#ff7a66', { alpha: 0.94, glow: 1.1, glowColor: '#ff816b' });
+            } else {
+              drawGlow(p.x, p.y, baseR * 3.0, '#8adbd4', 0.06);
+              ctx.save();
+              ctx.strokeStyle = 'rgba(133,217,209,.38)';
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.ellipse(p.x, p.y, baseR * 2.9, baseR * 1.3, Math.PI / 12, 0, TAU);
+              ctx.stroke();
+              ctx.beginPath();
+              ctx.ellipse(p.x, p.y, baseR * 2.1, baseR * 0.95, -Math.PI / 7, 0, TAU);
+              ctx.stroke();
+              ctx.restore();
+              drawSphere(p.x, p.y, baseR * 0.75, '#f5f6fa', { alpha: 0.98, glow: 2.0, glowColor: '#ffffff' });
+            }
+
+            const markX = p.x;
+            ctx.save();
+            ctx.fillStyle = idx === s.highlight ? '#ffcf61' : 'rgba(255,255,255,.45)';
+            ctx.beginPath();
+            ctx.arc(markX, lineY, idx === s.highlight ? 7 : 5, 0, TAU);
+            ctx.fill();
+            if (idx === s.highlight) {
+              ctx.strokeStyle = 'rgba(255,207,97,.45)';
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.arc(markX, lineY, 12, 0, TAU);
+              ctx.stroke();
+            }
+            ctx.restore();
+
+            drawConnector(markX, lineY - 10, p.x, p.y + baseR + 10, stage.color, true);
+            drawLabel(p.x - 60, lineY + 26, stage.title, stage.color);
+          });
+
+          const stageNotes = [
+            'Csillagközi gáz- és porfelhő gravitációs összehúzódása.',
+            'Stabil fősorozati csillag: hidrogénfúzió a magban.',
+            'A külső rétegek kitágulnak, a csillag vörös óriássá válik.',
+            'A levetett külső anyag után forró, sűrű fehér törpe marad.'
+          ];
+          drawPill(24, 24, stageNotes[s.highlight], '#ffcf61');
+        }
+      },
+
+      fusionPower: {
+        init(s) {
+          s.particles = Array.from({ length: 150 }, () => ({
+            u: Math.random() * TAU,
+            v: Math.random() * TAU,
+            su: 0.45 + Math.random() * 0.9,
+            sv: 1.4 + Math.random() * 1.2,
+            c: Math.random() > 0.45 ? '#ffcf52' : '#8ce8ff',
+            seed: Math.random() * 1000
+          }));
+          s.bursts = Array.from({ length: 12 }, (_, i) => ({ phase: i / 12 }));
+        },
+        update(dt, s) {
+          for (const p of s.particles) {
+            p.u += dt * p.su * app.speed;
+            p.v += dt * p.sv * app.speed;
+          }
+        },
+        render(s) {
+          const centerX = 0;
+          const centerY = 0.2;
+          const R = 4.6;
+          const r = 1.45;
+
+          function torusPoint(u, v, rr = r) {
+            return {
+              x: centerX + (R + rr * Math.cos(v)) * Math.cos(u),
+              y: centerY + rr * Math.sin(v),
+              z: (R + rr * Math.cos(v)) * Math.sin(u)
+            };
+          }
+
+          // magnetic cage lines
+          for (let ring = 0; ring < 18; ring++) {
+            const u = ring / 18 * TAU + app.elapsed * 0.04;
+            const pts = [];
+            for (let i = 0; i <= 48; i++) {
+              const v = i / 48 * TAU;
+              pts.push(project(torusPoint(u, v)));
+            }
+            drawPolyline(pts, '#b884ff', 1.15, 0.26);
+          }
+          for (let ring = 0; ring < 14; ring++) {
+            const v = ring / 14 * TAU;
+            const pts = [];
+            for (let i = 0; i <= 72; i++) {
+              const u = i / 72 * TAU;
+              pts.push(project(torusPoint(u, v)));
+            }
+            drawPolyline(pts, '#d6b0ff', 0.75, 0.12, ring % 2 === 0);
+          }
+
+          const particleDraw = [];
+          for (const p of s.particles) {
+            const point = torusPoint(p.u, p.v, r * (0.92 + Math.sin(p.seed + app.elapsed * 3) * 0.06));
+            const proj = project(point);
+            particleDraw.push({ proj, color: p.c });
+          }
+          particleDraw.sort((a, b) => b.proj.z - a.proj.z).forEach(p => {
+            const rr = Math.max(2.2, p.proj.scale * 0.1);
+            drawGlow(p.proj.x, p.proj.y, rr * 4.5, p.color, 0.08);
+            drawSphere(p.proj.x, p.proj.y, rr, p.color, { alpha: 0.9 });
+          });
+
+          // energy bursts
+          for (const b of s.bursts) {
+            const t = (app.elapsed * 0.22 + b.phase) % 1;
+            const u = t * TAU;
+            const point = torusPoint(u, Math.sin(app.elapsed * 4 + t * 8) * 0.7);
+            const proj = project(point);
+            const rr = (1 - t) * 26 + 8;
+            drawGlow(proj.x, proj.y, rr, '#ff9769', 0.08 * (1 - t));
+          }
+
+          drawPill(24, 24, 'D + T → ⁴He + n + energia', '#ffffff');
+          drawLabel(app.width - 255, 40, 'Nap: gravitációs\nösszenyomás', '#ffcf52');
+          drawLabel(app.width - 255, 118, 'Tokamak: mágneses\nplazmaösszetartás', '#b884ff');
+        }
+      }
+    };
+
+    function ensureScene(sceneKey) {
+      const s = sceneState(sceneKey);
+      if (!s.__ready) {
+        s.__ready = true;
+        if (scenes[sceneKey] && scenes[sceneKey].init) scenes[sceneKey].init(s);
+      }
+      return s;
+    }
+
+    function setScene(sceneKey, resetCamera = true) {
+      app.sceneKey = sceneKey;
+      sceneSelectTop.value = sceneKey;
+      sceneSelectSide.value = sceneKey;
+      updateSceneUI(sceneKey);
+      ensureScene(sceneKey);
+      if (resetCamera) applyCameraPreset(sceneKey);
+    }
+
+    function render() {
+      drawBackground();
+      drawStars();
+      const scene = scenes[app.sceneKey];
+      const s = ensureScene(app.sceneKey);
+      if (scene && scene.render) scene.render(s);
+      diag.textContent = `Canvas: ${app.width}×${app.height} • ${app.playing ? 'fut' : 'szünet'} • ${app.perf.fps.toFixed(0)} FPS`;
+    }
+
+    function tick(now) {
+      const rawDt = Math.min(0.05, Math.max(0.001, (now - app.lastTime) / 1000));
+      app.lastTime = now;
+      app.perf.blend = lerp(app.perf.blend, 1 / rawDt, 0.08);
+      app.perf.fps = app.perf.blend;
+      if (app.playing) {
+        app.elapsed += rawDt * app.speed;
+        const scene = scenes[app.sceneKey];
+        const s = ensureScene(app.sceneKey);
+        if (scene && scene.update) scene.update(rawDt, s);
+      }
+      render();
+      requestAnimationFrame(tick);
+    }
+
+    function setSpeed(v) {
+      app.speed = parseFloat(v);
+      speedRange.value = String(app.speed);
+      speedLabel.textContent = `${app.speed.toFixed(2).replace('.', ',')}×`;
+    }
+
+    function togglePlay() {
+      app.playing = !app.playing;
+      playPauseBtn.textContent = app.playing ? 'Szünet' : 'Folytatás';
+    }
+
+    sceneSelectTop.addEventListener('change', e => setScene(e.target.value, true));
+    sceneSelectSide.addEventListener('change', e => setScene(e.target.value, true));
+    speedRange.addEventListener('input', e => setSpeed(e.target.value));
+    playPauseBtn.addEventListener('click', togglePlay);
+    resetViewBtn.addEventListener('click', () => applyCameraPreset(app.sceneKey));
+
+    canvas.addEventListener('mousedown', e => {
+      app.mouse.down = true;
+      app.mouse.x = e.clientX;
+      app.mouse.y = e.clientY;
+      canvas.classList.add('dragging');
+    });
+    window.addEventListener('mouseup', () => {
+      app.mouse.down = false;
+      canvas.classList.remove('dragging');
+    });
+    window.addEventListener('mousemove', e => {
+      if (!app.mouse.down) return;
+      const dx = e.clientX - app.mouse.x;
+      const dy = e.clientY - app.mouse.y;
+      app.mouse.x = e.clientX;
+      app.mouse.y = e.clientY;
+      app.camera.yaw += dx * 0.005;
+      app.camera.pitch = clamp(app.camera.pitch + dy * 0.004, -0.75, 0.75);
+    });
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      app.camera.dist = clamp(app.camera.dist + e.deltaY * 0.01, 10, 42);
+    }, { passive: false });
+
+    window.addEventListener('resize', resize);
+
+    app.stars = makeStars();
+    resize();
+    setSpeed(1);
+    setScene('structure', true);
+    requestAnimationFrame(tick);
+  })();
+  </script>
+</body>
+</html>
